@@ -1,14 +1,38 @@
 import React, { Component } from 'react';
 import { Form, FormGroup, Input, Label, Row, Col } from 'reactstrap';
 class Timbrado extends Component {
+
   constructor(props) {
     super(props);
     this.state = {
       envio: 0,
-      tipo_nomina: 0
+      tipo_nomina: 1,
+      ejercicio: 2019,
+      quincena: '01',
+      periodo: 0,
+      descripcion: ''
     };
     this.handleChange = this.handleChange.bind(this);
+    this.handleFiles = this.handleFiles.bind(this);
+    this.calculaPeriodo = this.calculaPeriodo.bind(this);
     //this.handleSubmit = this.handleSubmit.bind(this);
+
+    // Patrón para validar el nombre del archivo
+    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|[a-z]{3})?.*(base|conf|compen|edd|hon|b|c|h).*\.xls(x)?/i;
+    this.meses = {
+      'ENE': 'ENERO',
+      'FEB': 'FEBRERO',
+      'MAR': 'MARZO',
+      'ABR': 'ABRIL',
+      'MAY': 'MAYO',
+      'JUN': 'JUNIO',
+      'JUL': 'JULIO',
+      'AGO': 'AGOSTO',
+      'SEP': 'SEPTIEMBRE',
+      'OCT': 'OCTUBRE',
+      'NOV': 'NOVIEMBRE',
+      'DIC': 'DICIEMBRE'
+    };
   }
 
   handleChange(event) {
@@ -21,8 +45,90 @@ class Timbrado extends Component {
     });
   }
 
+  calculaPeriodo(tipo, valores) {
+    var descripcion = '';
+    switch (tipo) {
+      case 'm':
+        descripcion = 'PAGO DEL MES DE ' + this.meses[valores.quincena] + ' DE ' + valores.ejercicio;
+        break;
+      case 'q':
+        var segunda = valores.quincena % 2 === 0;
+        var mes = (segunda ? parseInt(valores.quincena) : parseInt(valores.quincena) + 1) / 2;
+        var nombre_mes = Object.keys(this.meses)[mes-1];
+        descripcion = 'PAGO DE LA ' + (segunda ?'SEGUNDA' : 'PRIMERA') + ' QUINCENA DEL MES DE '+ this.meses[nombre_mes] + ' DE ' + valores.ejercicio;
+        break;
+      default:
+       descripcion = '';
+    }
+    return descripcion;
+  }
+
   handleFiles(event) {
-    console.log(event.target)
+    var file = event.target.files[0];
+    var coincidencias = this.fileName.exec(file.name);
+    console.log(coincidencias);
+    var valores = {
+      ejercicio: 2019,
+      quincena: '01',
+      tipo_nomina: 1,
+      periodo: 0,
+      envio: 0,
+      descripcion: ''
+    };
+    if (coincidencias) {
+      if (coincidencias[1]) {
+        valores.ejercicio = coincidencias[1];
+      }
+      if (coincidencias[2]) {
+        valores.quincena = coincidencias[2];
+      }
+      // tipo de nomina
+      if (coincidencias[4]) {
+        switch (coincidencias[4].toUpperCase()) {
+          case 'BASE':
+          case 'B':
+            valores.tipo_nomina = 1;
+            break;
+            case 'CONF':
+            case 'C':
+              valores.tipo_nomina = 2;
+              break;
+            case 'COMPEN':
+            case 'EDD':
+              valores.tipo_nomina = 3;
+              break;
+              case 'HON':
+              case 'H':
+                valores.tipo_nomina = 4;
+                break;
+          default:
+            valores.tipo_nomina = 5;
+        }
+      }
+      //tipo de emision
+      if (coincidencias[3]) {
+        // periodos no quincenales
+        switch (coincidencias[3].toUpperCase()) {
+          case 'EXTRA':
+          case 'AGUI':
+          case 'RETRO':
+            valores.emision = 2;
+            break;
+          default:
+            //mensual
+            valores.quincena = coincidencias[3].toUpperCase()
+            valores.emision = 1;
+            valores.descripcion = this.calculaPeriodo('m', valores);
+        }
+      }  else {
+        // pago Quincenal
+        // se debe determinar la quincena en la cual se esta aplicando el pago
+        valores.descripcion = this.calculaPeriodo('q', valores);
+      }
+    } else {
+      alert('el nombre de archivo no coincide con el formato establecido');
+    }
+    this.setState(valores);
   }
 
   render () {
@@ -43,7 +149,7 @@ class Timbrado extends Component {
               <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange}>
                 <option value="1">Base</option>
                 <option value="2">Confianza</option>
-                <option value="3">Compensaciones</option>
+                <option value="3">EDD</option>
                 <option value="4">Honorarios</option>
                 <option value="5">Otro</option>
               </Input>
@@ -51,14 +157,11 @@ class Timbrado extends Component {
           </Col>
           <Col sm={3}>
             <FormGroup>
-              <Label for="emision">Tipo de emisión</Label>
-              <Input name="emision" type="select">
-                <option value="0">Ordinaria</option>
-                <option value="1">Complementaria</option>
-                <option value="2">Extraordinaria</option>
-                <option value="3">Pago retroactivo</option>
-                <option value="4">Aginaldo</option>
-                <option value="5">Otro</option>
+              <Label for="emision">Periodo</Label>
+              <Input name="emision" type="select" value={this.state.periodo} onChange={this.handleChange}>
+                <option value="0">Quincenal</option>
+                <option value="1">Mensual</option>
+                <option value="2">otro</option>
               </Input>
             </FormGroup>
           </Col>
@@ -73,19 +176,19 @@ class Timbrado extends Component {
           <Col sm={2}>
             <FormGroup>
               <Label for="ejercicio">Ejercicio</Label>
-              <Input id="ejercicio" name="ejercicio" placeholder={'Año'}/>
+              <Input name="ejercicio" placeholder={'Año'} value={this.state.ejercicio} onChange={this.handleChange}/>
             </FormGroup>
           </Col>
           <Col sm={2}>
             <FormGroup>
-              <Label for="quincena">Quincena</Label>
-              <Input id="quincena" name="quincena" placeholder="01-24"/>
+              <Label for="quincena">Quincena / Mes</Label>
+              <Input id="quincena" name="quincena" placeholder="01-24" value={this.state.quincena} onChange={this.handleChange}/>
             </FormGroup>
           </Col>
           <Col>
             <FormGroup>
               <Label for="descripcion">Descripción de la nomina</Label>
-              <Input id="descripcion" name="descripcion"/>
+              <Input id="descripcion" name="descripcion" value={this.state.descripcion} onChange={this.handleChange}/>
             </FormGroup>
           </Col>
         </Row>
