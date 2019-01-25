@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Form, FormGroup, Input, Label, Row, Col, Alert } from 'reactstrap';
+import catalog from './FieldsCatalog'
 import XLSX from 'xlsx';
 
 // components
@@ -36,7 +37,8 @@ class Timbrado extends Component {
       plantilla: false,
       color: "primary",
       message: '',
-      bae: {}
+      bae: {},
+      dias_pagados: 0
     };
     this.handleChange = this.handleChange.bind(this);
     this.handleFiles = this.handleFiles.bind(this);
@@ -101,6 +103,7 @@ class Timbrado extends Component {
         // se calculan las fechas
         fi = new Date(anio, arrayMeses.indexOf(valores.quincena), 1);
         ff = new Date(anio, arrayMeses.indexOf(valores.quincena)+1, 0);
+        valores.dias_pagados = this.calculaDias(fi, ff);
         break;
       case 'q':
         var segunda = valores.quincena % 2 === 0;
@@ -112,11 +115,13 @@ class Timbrado extends Component {
           fi = new Date(anio, mes, 16);
           ff = new Date(anio, mes + 1, 0);
         }
+        valores.dias_pagados = mes === 1 ? this.calculaDias(fi, ff) : 15;
         var nombre_mes = arrayMeses[mes];
         descripcion = 'PAGO DE LA ' + (segunda ?'SEGUNDA' : 'PRIMERA') + ' QUINCENA DEL MES DE '+ this.meses[nombre_mes] + ' DE ' + valores.ejercicio + ' ' + valores.prefijo;
         break;
       default:
        descripcion = '';
+       valores.dias_pagados = 1; // lo minimo permitodo en el reporte es 1 dia
     }
     valores.fechaInicio = fi.toISOString().substr(0, 10);
     valores.fechaFin = ff.toISOString().substr(0, 10);
@@ -129,8 +134,8 @@ class Timbrado extends Component {
     var coincidencias = this.fileName.exec(file.name);
     console.log(coincidencias);
     var valores = {
-      ejercicio: 2019,
       quincena: '01',
+      ejercicio: 2019,
       tipo_nomina: 1,
       periodo: 0,
       envio: 0,
@@ -140,7 +145,8 @@ class Timbrado extends Component {
       fechaPago: '',
       plantilla: false,
       message: '',
-      bae: {}
+      bae: {},
+      dias_pagados: 1
     };
     if (coincidencias) {
       if (coincidencias[1]) {
@@ -184,6 +190,20 @@ class Timbrado extends Component {
           case 'AGUI':
           case 'RETRO':
             valores.periodo = 2;
+            let periodo =  coincidencias[3].toUpperCase();
+            this.calculaPeriodo('q', valores);
+            let fechaP = valores.fechaPago;
+            if (periodo !== "AGUI") {
+              --valores.quincena;
+              this.calculaPeriodo('q', valores);
+              valores.quincena++;
+            }
+            // se sobreescriben la fecha de inicio
+            valores.fechaInicio = new Date(valores.ejercicio, 0, 1).toISOString().substr(0, 10);
+            valores.fechaPago = fechaP;
+            valores.descripcion = "PAGO DE " + periodo + " " + valores.prefijo;
+            valores.dias_pagados = 1;
+
             break;
           default:
             //mensual
@@ -212,19 +232,25 @@ class Timbrado extends Component {
     }
   }
 
+  calculaDias (i, f) {
+    let diff = f-i;
+    return (diff/(1000*60*60*24)) + 1;
+  }
+
   loadFile (event) {
     var data = event.target.result;
     var color = "danger";
     let wb = XLSX.read(data, {type: 'binary'});
     let names = wb.SheetNames;
     let base = XLSX.utils.sheet_to_json(wb.Sheets[names[0]]);
+
+    //verifica los valores minimos necesarios
     let encabezados = Object.keys(base[0]).map(e => e.toUpperCase());
     console.log(encabezados);
     const faltantes = [];
     this.dataFields.forEach(item => {
       if(encabezados.indexOf(item) < 0) {
         faltantes.push(item);
-        console.log('esta: '+ item);
       }
     })
     if (faltantes.length) {
@@ -248,7 +274,7 @@ class Timbrado extends Component {
           <Col sm={3}>
             <FormGroup>
               <Label for="tipo_nomina">Tipo de nomina</Label>
-              <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange}>
+              <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange} disabled>
                 <option value="1">Base</option>
                 <option value="2">Confianza</option>
                 <option value="3">EDD</option>
@@ -260,7 +286,7 @@ class Timbrado extends Component {
           <Col sm={3}>
             <FormGroup>
               <Label for="emision">Periodo</Label>
-              <Input name="emision" type="select" value={this.state.periodo} onChange={this.handleChange}>
+              <Input name="emision" type="select" value={this.state.periodo} onChange={this.handleChange} disabled>
                 <option value="0">Quincenal</option>
                 <option value="1">Mensual</option>
                 <option value="2">otro</option>
@@ -312,6 +338,12 @@ class Timbrado extends Component {
             <FormGroup>
               <Label for="fechaPago">Fecha pago</Label>
               <Input id="fechaPago" name="fechaPago" type="date" value={this.state.fechaPago} onChange={this.handleChange}/>
+            </FormGroup>
+          </Col>
+          <Col sm={2}>
+            <FormGroup>
+              <Label for="fechaPago">Días pagados</Label>
+              <Input id="fechaPago" name="fechaPago" type="number" value={this.state.dias_pagados} onChange={this.handleChange}/>
             </FormGroup>
           </Col>
         </Row>
