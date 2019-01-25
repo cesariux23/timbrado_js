@@ -218,7 +218,7 @@ class Timbrado extends Component {
     let wb = XLSX.read(data, {type: 'binary'});
     let names = wb.SheetNames;
     let base = XLSX.utils.sheet_to_json(wb.Sheets[names[0]]);
-    let encabezados = Object.keys(base[0]);
+    let encabezados = Object.keys(base[0]).map(e => e.toUpperCase());
     console.log(encabezados);
     const faltantes = [];
     this.dataFields.forEach(item => {
