@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import { Form, FormGroup, Input, Label, Row, Col, Alert } from 'reactstrap';
-import catalog from './FieldsCatalog'
+import catalog from '../assets/catalogo.csv'
+import papa from 'papaparse';
 import XLSX from 'xlsx';
 
 // components
@@ -40,6 +41,13 @@ class Timbrado extends Component {
       bae: {},
       dias_pagados: 0
     };
+    console.log(papa.parse(catalog, {
+      download: true,
+      header: true,
+      complete: result => {
+        console.log(result.data);
+      }
+    }));
     this.handleChange = this.handleChange.bind(this);
     this.handleFiles = this.handleFiles.bind(this);
     this.calculaPeriodo = this.calculaPeriodo.bind(this);

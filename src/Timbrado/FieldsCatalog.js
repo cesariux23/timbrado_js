@@ -1,4 +1,3 @@
-import csv from 'csvtojson';
 import catalogos from '../assets/catalogo.csv';
 export default {
   // datos minimos necesarios
@@ -15,5 +14,4 @@ export default {
   datosPlantilla:[
   ],
   //catalogo de percepciones
-  conceptos: csv().fromFile(catalogos)
 }
