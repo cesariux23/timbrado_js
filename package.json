@@ -1,11 +1,14 @@
 {
   "name": "timbrado",
   "version": "0.1.0",
+  "homepage": "http://192.168.30.248/timbrado",
   "private": true,
   "dependencies": {
     "bootstrap": "^4.2.1",
     "css-loader": "^2.1.0",
+    "exceljs": "^1.7.0",
     "fs": "^0.0.1-security",
+    "graceful-fs": "^4.1.15",
     "papaparse": "^4.6.3",
     "react": "^16.7.0",
     "react-dom": "^16.7.0",
