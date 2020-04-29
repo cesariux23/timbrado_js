@@ -365,6 +365,7 @@ class Timbrado extends Component {
         base.forEach(e => {
           let plantilla = Object.keys(e).includes('BASECONF') ? e['BASECONF'] : '';
           e.CORREO = e.CORREO || 'ver_rechum@inea.gob.mx';
+          e.cc = e.CORREO ? 'ver_rechum@inea.gob.mx': '';
           switch (plantilla) {
             case 'B':
             case 'C':
@@ -603,7 +604,7 @@ class Timbrado extends Component {
       }
       datos.push(this.state.descripcion); // Observaciones
       datos.push(e.CORREO);// correo
-      datos.push(''); // cc
+      datos.push(e.cc); // cc
       datos.push(''); // trl relacionado
       datos.push(''); // uuid relacionado
       datos.push(this.state.descripcion); // descripcion del pago
