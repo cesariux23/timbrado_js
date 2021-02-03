@@ -540,15 +540,12 @@ class Timbrado extends Component {
       datos.push(pago); // f pago
       datos.push(inicio); // f inicio
       datos.push(fin); // f fin
-      datos.push(diasPagados); // dias pagados
+      datos.push(Number(diasPagados)); // dias pagados
       datos.push(percepciones);
       datos.push(deducciones);
       // otros pagos
-      if (otros > 0 || e.regimen === '02') {
-        datos.push(otros); // otros pagos
-      } else {
-        datos.push(''); 
-      }
+      // Se agrega el acomulado, si no hay será 0.
+      datos.push(otros);
       datos.push(e.patronal); // patronal
       datos.push('IF'); // origen del recurso
       datos.push(0); // Rec propio
