@@ -9,7 +9,7 @@
     "exceljs": "^1.7.0",
     "fs": "^0.0.1-security",
     "graceful-fs": "^4.1.15",
-    "papaparse": "^4.6.3",
+    "papaparse": "^5.2.0",
     "react": "^16.7.0",
     "react-dom": "^16.7.0",
     "react-scripts": "2.1.3",
