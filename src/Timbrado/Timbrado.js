@@ -35,7 +35,6 @@ class Timbrado extends Component {
       plantilla: false,
       color: "primary",
       message: '',
-      bae: [],
       diasPagados: 0,
       catalogo: [],
       hasError: true
@@ -63,7 +62,7 @@ class Timbrado extends Component {
     //this.handleSubmit = this.handleSubmit.bind(this);
 
     // Patrón para validar el nombre del archivo
-    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|[a-z]{3})?.*(base|conf|compen|edd|hon|b|c|h|nsal).*\.xls(x)?/i;
+    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|[a-z]{3})?.*(base|conf|compen|edd|h1|b|c|h2|nsal).*\.xls(x)?/i;
 
     //patron para la validacion de RFC
     this.RfcPatter = /[A-Z]{4}\d{6}[A-Z0-9]{3}/i;
@@ -155,7 +154,7 @@ class Timbrado extends Component {
       default:
        descripcion = '';
        valores.qna ='00';
-       valores.diasPagados = 1; // lo minimo permitodo en el reporte es 1 dia
+       valores.diasPagados = 1; // lo minimo permitido en el reporte es 1 dia
     }
     valores.fechaInicio = fi.toISOString().substr(0, 10);
     valores.fechaFin = ff.toISOString().substr(0, 10);
@@ -179,8 +178,8 @@ class Timbrado extends Component {
       fechaFin: '',
       fechaPago: '',
       plantilla: false,
+      seguridad_social: 'Ninguno',
       message: '',
-      bae: {},
       diasPagados: 1
     };
     if (coincidencias) {
@@ -213,12 +212,14 @@ class Timbrado extends Component {
             valores.tipo_nomina = 3;
             valores.plantilla = true;
             break;
-          case 'HON':
-          case 'H':
+          case 'H1':
             valores.tipo_nomina = 4;
             break;
+          case 'H2':
+              valores.tipo_nomina = 5;
+              break;
           default:
-            valores.tipo_nomina = 5;
+            valores.tipo_nomina = 6;
         }
       }
       //tipo de emision
@@ -365,20 +366,25 @@ class Timbrado extends Component {
         base.forEach(e => {
           let plantilla = Object.keys(e).includes('BASECONF') ? e['BASECONF'] : '';
           e.CORREO = e.CORREO || 'ver_rechum@inea.gob.mx';
-          e.cc = e.CORREO ? 'ver_rechum@inea.gob.mx': '';
+          e.cc = e.CORREO === 'ver_rechum@inea.gob.mx' ? '' : 'ver_rechum@inea.gob.mx';
+          e.sexo = e.CURP.substr(10,1) === 'H' ? 'M' : 'F';
           switch (plantilla) {
             case 'B':
             case 'C':
               e.sindicalizado = plantilla === 'B' ? 'Sí' : 'No';
+              e.situacion_administrativa = plantilla === 'B' ? 'BASE' : 'CONFIANZA';
               e.NSS = e.NSS || '0000000000';
               e.FECHAING = new Date(Math.round((e.FECHAING - 25569)*86400*1000));
               e.patronal = '06030087';
               e.riesgo = '1';
               e.regimen = '02';
               e.contrato = '01';
+              e.seguridad_social = 'ISSSTE';
               break;
             default:
               e.sindicalizado = false;
+              e.situacion_administrativa = 'EVENTUAL';
+              e.seguridad_social = 'NINGUNO';
               e.NSS = '';
               e.patronal = '';
               e.riesgo = '';
@@ -426,7 +432,7 @@ class Timbrado extends Component {
     }
     // se recorre la base
     this.state.base.forEach(e => {
-      let datos = [];    
+      let datos = [];
       let percepciones = 0;
       let deducciones = 0;
       let totalGravado = 0;
@@ -605,9 +611,13 @@ class Timbrado extends Component {
       datos.push(''); // trl relacionado
       datos.push(''); // uuid relacionado
       datos.push(this.state.descripcion); // descripcion del pago
+      // Julio 2021:
+      // Se adicionan los siguentes campos
+      datos.push(e.sexo);
+      datos.push(e.situacion_administrativa);
+      datos.push(e.seguridad_social);
 
       generales.push(datos);
-      //conceptos.push();
     });
 
     var download = function (xls64, name) {
@@ -696,12 +706,13 @@ class Timbrado extends Component {
           <Col sm={3}>
             <FormGroup>
               <Label for="tipo_nomina">Tipo de nomina</Label>
-              <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange} disabled>
+              <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange}>
                 <option value="1">Base</option>
                 <option value="2">Confianza</option>
                 <option value="3">EDD</option>
-                <option value="4">Honorarios</option>
-                <option value="5">Otro</option>
+                <option value="4">(H1) Asimilados federales</option>
+                <option value="5">(H2) Asimilados estatales</option>
+                <option value="6">Otro</option>
               </Input>
             </FormGroup>
           </Col>
