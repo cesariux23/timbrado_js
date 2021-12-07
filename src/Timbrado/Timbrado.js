@@ -418,6 +418,8 @@ class Timbrado extends Component {
     const fin = parseDate(this.state.fechaFin);
     const pago = parseDate(this.state.fechaPago);
     const diasPagados = this.state.diasPagados;
+    const recibos = {generales:{quincena: this.state.descripcion, inicio, fin}, empleados: []}
+
     let periodo = '99';
     switch (this.state.periodo) {
       case 0:
@@ -440,6 +442,7 @@ class Timbrado extends Component {
       let ISR = 0;
       let otros = 0;
       let folio =folioBase.concat(String(incremental++).padStart(3,'0'));
+      let recibo = { datos: {consecutivo: incremental-1}, percep: [], deduc:[]}
 
       let cont = 1;
       this.state.percepciones.forEach(p => {
@@ -474,6 +477,7 @@ class Timbrado extends Component {
           totalGravado += Math.round(grabado*100)/100;
           totalExcento += Math.round(excento*100)/100;
           conceptos.push(desglose);
+          recibo.percep.push(desglose);
         } 
       });
 
@@ -506,7 +510,14 @@ class Timbrado extends Component {
           desglose.push(String(cont++));
           desglose.push(String(p.TIPO));
           desglose.push(String(p.CLAVE));
-          desglose.push(p.DESCRIPCION);
+          let descripcion = p.DESCRIPCION
+          if(p.KEY === 'PCP') {
+            // para los prestamos a corto plazo se agregará el record en la descripción
+            if(e['QNASPREST'] && e['QNASPREST'] !== '/') {
+              descripcion += ', PAGO ' + e['QNASPREST']
+            }
+          }
+          desglose.push(descripcion);
           desglose.push(String(p.TIPO_SAT).padStart(3,'0'));
           desglose.push(grabado);
           desglose.push(excento);
@@ -515,6 +526,7 @@ class Timbrado extends Component {
             ISR = parseFloat(parseFloat(e[p.KEY]).toFixed(2));
           }
           conceptos.push(desglose);
+          recibo.deduc.push(desglose);
         } 
       });      
 
@@ -537,9 +549,12 @@ class Timbrado extends Component {
       datos.push(deducciones);
       let neto = Math.round((percepciones-deducciones)*100)/100;
       datos.push(neto);
+      recibo.datos.neto = neto;
       datos.push('91030') // expedicion
       datos.push(e['RFC']);
+      recibo.datos.rfc = e['RFC'];
       datos.push(e['NOMBRE']);
+      recibo.datos.nombre = e['NOMBRE'];
       datos.push(percepciones); // v. unitario
       datos.push(percepciones); // importe
       datos.push(emision); // tipo nomina
@@ -549,6 +564,8 @@ class Timbrado extends Component {
       datos.push(Number(diasPagados)); // dias pagados
       datos.push(percepciones);
       datos.push(deducciones);
+      recibo.datos.percepciones = percepciones;
+      recibo.datos.deducciones = deducciones;
       // otros pagos
       // Se agrega el acomulado, si no hay será 0.
       datos.push(otros);
@@ -556,6 +573,7 @@ class Timbrado extends Component {
       datos.push('IF'); // origen del recurso
       datos.push(0); // Rec propio
       datos.push(e['CURP']);
+      recibo.datos.curp = e['CURP'];
       datos.push(e.NSS); // Num seguro
       // antiguedad
       if (e.sindicalizado) {
@@ -572,8 +590,12 @@ class Timbrado extends Component {
       datos.push('01'); // jornada
       datos.push(e.regimen); // regimen
       datos.push('0'); // no. empleado
+      recibo.datos.no_emp = e['NOEMPEADO'];
       datos.push(e['ADSCRIPCION'].replace('.', '').replace(',',''));
+      recibo.datos.adscripcion = e['ADSCRIPCION'].replace('.', '').replace(',','');
       datos.push(''); // puesto
+      recibo.datos.puesto = e['NOMBRE_PUESTO'];
+      recibo.datos.codigo = e['CODIGO'];
       datos.push(e.riesgo); // riesgo
       datos.push(periodo); // periodicidad 
       datos.push(''); // banco
@@ -618,14 +640,21 @@ class Timbrado extends Component {
       datos.push(e.seguridad_social);
 
       generales.push(datos);
+      recibos.empleados.push(recibo);
     });
 
-    var download = function (xls64, name) {
+    var download = function (xls64, name, isJson = false) {
       // build anchor tag and attach file (works in chrome)
       var a = document.createElement("a");
-      var data = new Blob([xls64], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      let url = null
+      if(isJson){
+        url = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(xls64));
+      } else {
+        url = URL.createObjectURL(
+          new Blob([xls64], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        );
+      }
 
-      var url = URL.createObjectURL(data);
       a.href = url;
       a.download = name || "export.xlsx";
       document.body.appendChild(a);
@@ -684,11 +713,10 @@ class Timbrado extends Component {
       })
     }
     req2.send();
-    
-    console.log(generales);
 
-    
-    
+    // datos para recibos
+    download (recibos, folioBase +'_recibos.json', true)
+      
   }
 
   render () {
