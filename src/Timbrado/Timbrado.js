@@ -2,6 +2,8 @@ import React, { Component } from 'react'
 import { Form, FormGroup, Input, Button, Label, Row, Col, Alert } from 'reactstrap'
 import catalog from '../assets/catalogo.csv'
 import concepts from '../assets/conceptos.xlsx'
+import bancos from '../assets/bancos.json'
+import indemnizacion from '../assets/indemnizacion.xlsx'
 import generals from '../assets/datos_generales.xlsx'
 import XLSX from 'xlsx'
 import Excel from 'exceljs/dist/es5/exceljs.browser'
@@ -24,7 +26,7 @@ class Timbrado extends Component {
     this.state = {
       envio: 0,
       tipo_nomina: 1,
-      ejercicio: 2019,
+      ejercicio: 2022,
       quincena: '01',
       periodo: 0,
       qna:'00',
@@ -37,7 +39,9 @@ class Timbrado extends Component {
       message: '',
       diasPagados: 0,
       catalogo: [],
-      hasError: true
+      hasError: true,
+      esFiniquito: false,
+      periodos_variados: false,
     };
 
     // Se cargan catalogos
@@ -62,7 +66,7 @@ class Timbrado extends Component {
     //this.handleSubmit = this.handleSubmit.bind(this);
 
     // Patrón para validar el nombre del archivo
-    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|[a-z]{3})?.*(base|conf|compen|edd|h1|b|c|h2|nsal).*\.xls(x)?/i;
+    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|finiquito|[a-z]{3})?.*(base|conf|compen|edd|h1|b|c|h2|nsal).*\.xls(x)?/i;
 
     //patron para la validacion de RFC
     this.RfcPatter = /[A-Z]{4}\d{6}[A-Z0-9]{3}/i;
@@ -93,7 +97,9 @@ class Timbrado extends Component {
         'TPERCEP',
         'TDEDUC',
         'TNETO',
-        'CURP'
+        'CURP',
+        'NCUENTA',
+        'BANCO'
       ],
       'plantilla': [
         'CODIGO',
@@ -101,11 +107,8 @@ class Timbrado extends Component {
         'BASECONF',
         'NOEMPEADO',
         'NOMBRE_PUESTO',
-        'CORREO'
-        // campos que talvez no sean necesarios
-        // 'NSS',
-        // 'NCUENTA',
-        // 'IDPAGO'
+        'CORREO',
+        'NSS',
       ]
     };
   }
@@ -132,7 +135,7 @@ class Timbrado extends Component {
         // se calculan las fechas
         fi = new Date(anio, arrayMeses.indexOf(valores.quincena), 1);
         ff = new Date(anio, arrayMeses.indexOf(valores.quincena)+1, 0);
-        valores.diasPagados = this.calculaDias(fi, ff);
+        valores.diasPagados = 30;
         valores.qna = String(arrayMeses.indexOf(valores.quincena)+1).padStart(2,'0');
         break;
       case 'q':
@@ -158,17 +161,29 @@ class Timbrado extends Component {
     }
     valores.fechaInicio = fi.toISOString().substr(0, 10);
     valores.fechaFin = ff.toISOString().substr(0, 10);
-    valores.fechaPago= ff.toISOString().substr(0, 10);
+    // se determina la fecha de pago si es día de fin de la quincena es fin de semana
+    let fp = new Date(ff);
+    // Si el mes tiene 31 días se corrige 30
+    if(fp.getDate() === 31){
+      fp.setDate(30);
+    }
+    if(fp.getDay() === 0 || fp.getDay() === 6){
+      fp.setDate(fp.getDate() - (fp.getDay() === 6 ? 1: 2))
+    }
+    valores.fechaPago= fp.toISOString().substr(0, 10);
     return descripcion;
   }
 
   handleFiles(event) {
     var file = event.target.files[0];
+    if (file === undefined) {
+      this.setState({ message: 'Seleccione un archivo', color: "danger"});
+      return
+    }
     var coincidencias = this.fileName.exec(file.name);
-    console.log(coincidencias);
     var valores = {
       quincena: '01',
-      ejercicio: 2019,
+      ejercicio: 2022,
       tipo_nomina: 1,
       periodo: 0,
       qna:0, // prefijo del periodo que se utlizará en la nomina
@@ -180,7 +195,8 @@ class Timbrado extends Component {
       plantilla: false,
       seguridad_social: 'Ninguno',
       message: '',
-      diasPagados: 1
+      diasPagados: 1,
+      esFiniquito: false,
     };
     if (coincidencias) {
       if (coincidencias[1]) {
@@ -228,6 +244,7 @@ class Timbrado extends Component {
         valores.tipo_emision = 'E';
         switch (coincidencias[3].toUpperCase()) {
           case 'EXTRA':
+          case 'FINIQUITO':
           case 'AGUI':
           case 'RETRO':
             valores.periodo = 2;
@@ -240,6 +257,9 @@ class Timbrado extends Component {
               this.calculaPeriodo('q', valores);
               valores.quincena++;
               valores.qna++;
+            }
+            if (periodo === 'FINIQUITO') {
+              valores.esFiniquito = true
             }
             // se sobreescriben la fecha de inicio
             valores.fechaInicio = new Date(valores.ejercicio, 0, 1).toISOString().substr(0, 10);
@@ -283,6 +303,15 @@ class Timbrado extends Component {
     return Math.round(diff/(1000*60*60*24)) + 1;
   }
 
+  parseDate = (date) => {
+    return date.split('-').reverse().join('/');
+  }
+
+  convierteFecha(f) {
+    let fecha = new Date(Math.round((f - 25569)*86400*1000));
+    return this.parseDate(fecha.toISOString().substring(0, 10))
+  }
+
   // carga del archivo de nomina
   loadFile (event) {
     this.setState({hasError: true});
@@ -298,14 +327,12 @@ class Timbrado extends Component {
         let i = 0;
         if(!base.slice(1).every(e => {
           i++;
-          console.log(e);
           return pattern.test(e[field])
         })) {
           this.setState({message: `Hoja '${hoja}', linea ${i} .- ${field} con formato invalido: ${base[i][field]}`, color});
           return true;
         }
         return false;
-        
       }
     let percepciones = [];
     let deducciones = [];
@@ -327,8 +354,13 @@ class Timbrado extends Component {
         hasError = true;
         return false;
       }
+
+      // cuando en el archivo se especifique un periodo se notificará al usuario
+      if(encabezados.indexOf('INICIO') >= 0){
+        console.log(encabezados.indexOf('INICIO'))
+        this.setState({periodos_variados: true});
+      }
       // valida las columnas de los conceptos
-      console.log(this.state.catalogo);
       this.state.catalogo.forEach(cat => {
         if (encabezados.includes(cat.KEY)) {
           if (cat.TIPO === 1) {
@@ -375,10 +407,12 @@ class Timbrado extends Component {
               e.situacion_administrativa = plantilla === 'B' ? 'BASE' : 'CONFIANZA';
               e.NSS = e.NSS || '0000000000';
               e.FECHAING = new Date(Math.round((e.FECHAING - 25569)*86400*1000));
-              e.patronal = '06030087';
+              // en los finiquitos no llevan registro patronal
+              e.patronal = this.state.esFiniquito ? '': '06030087';
               e.riesgo = '1';
-              e.regimen = '02';
-              e.contrato = '01';
+              // para poder especificar los finiquitos es necesario establecer el regimen como "Indemnización o Separación (13) y contrato en 99"
+              e.regimen = this.state.esFiniquito ? '13': '02'
+              e.contrato = this.state.esFiniquito ? '99': '01';
               e.seguridad_social = 'ISSSTE';
               break;
             default:
@@ -400,24 +434,22 @@ class Timbrado extends Component {
 
     if (!hasError) {
       //cuenta los registros
-      this.setState({base:datos, percepciones, deducciones, message:`${datos.length } registros en el archivo de nomina. ${percepciones.length} percepciones, ${deducciones.length} deducciones. Listo para procesar.`, hasError: false, color: 'success'});
+      this.setState({base:datos, percepciones, deducciones, message:`${datos.length } registros en el archivo de nomina. ${percepciones.length} percepciones, ${deducciones.length} deducciones. ${this.state.esFiniquito? 'Este archivo pertenece a un FINIQUITO.': ''} ${this.state.periodos_variados? 'Se utilizarán las fechas establecidas en las columnas INICIO, FIN y PAGO': ''} Listo para procesar.`, hasError: false, color: 'success'});
     }
   }
   handleSubmit (event) {
     // Generacion de datos generales
     const folioBase = [this.state.ejercicio.substr(2,2), this.state.qna, this.state.periodo, this.state.tipo_nomina, this.state.envio].join("");
-    const parseDate = (date) => {
-      return date.split('-').reverse().join('/');
-    }
     let incremental = 1;
     const generales = [];
     const conceptos = [];
+    const separacion = []
     const serie = 'IVE';
     const emision = this.state.tipo_emision;
-    const inicio = parseDate(this.state.fechaInicio);
-    const fin = parseDate(this.state.fechaFin);
-    const pago = parseDate(this.state.fechaPago);
-    const diasPagados = this.state.diasPagados;
+    const inicio = this.parseDate(this.state.fechaInicio);
+    const fin = this.parseDate(this.state.fechaFin);
+    const pago = this.parseDate(this.state.fechaPago);
+    let diasPagados = this.state.diasPagados;
     const recibos = {generales:{quincena: this.state.descripcion, inicio, fin}, empleados: []}
 
     let periodo = '99';
@@ -441,12 +473,14 @@ class Timbrado extends Component {
       let totalExcento = 0;
       let ISR = 0;
       let otros = 0;
+      let totalSeparacion = 0
       let folio =folioBase.concat(String(incremental++).padStart(3,'0'));
       let recibo = { datos: {consecutivo: incremental-1}, percep: [], deduc:[]}
 
       let cont = 1;
       this.state.percepciones.forEach(p => {
         let desglose = [];
+        let valSeparacion = 0
         // se valida el monto
         let valor =parseFloat(parseFloat(e[p.KEY]).toFixed(2));
         if (valor>0) {
@@ -454,9 +488,13 @@ class Timbrado extends Component {
           // se valida el monto excento
           if (p.EXENTO === 1) { 
             // busca dentro de los conceptos la parte excenta
-
             excento = e[ p.KEY + "_EXE"] ? parseFloat(parseFloat(e[p.KEY + "_EXE"]).toFixed(2)) : 0;
-
+            
+            // La prima de antiguedad por renuncia es excenta
+            if(p.KEY === 'ANT_RENUNCIA') {
+              excento = parseFloat(e[p.KEY]).toFixed(2)
+              valSeparacion = excento
+            }
           }
            // otros pagos
           if (p.OTROS) {
@@ -476,8 +514,24 @@ class Timbrado extends Component {
           percepciones += Math.round(valor*100)/100;
           totalGravado += Math.round(grabado*100)/100;
           totalExcento += Math.round(excento*100)/100;
+          if (valSeparacion > 0) {
+            // SE ESPECIFICA DESGOSE PARA LOS PAGO POR SEPARACIÓN
+            let acomulable = parseFloat(valSeparacion) - parseFloat(e['SUELDO_MENSUAL_ORD'])
+            const desglose_sep = [
+              folio,
+              parseFloat(valSeparacion),
+              String(e['ANIO_SERV']),
+              e['SUELDO_MENSUAL_ORD'],// sueldo mensual
+              e['SUELDO_MENSUAL_ORD'],
+              // el acomulable es antiguedad -  el sueldo mensual
+              parseFloat(acomulable),
+            ]
+            separacion.push(desglose_sep)
+            totalSeparacion =+ valSeparacion
+          }
+
           conceptos.push(desglose);
-          recibo.percep.push(desglose);
+          recibo.percep.push(desglose)
         } 
       });
 
@@ -511,12 +565,12 @@ class Timbrado extends Component {
           desglose.push(String(p.TIPO));
           desglose.push(String(p.CLAVE));
           let descripcion = p.DESCRIPCION
-          if(p.KEY === 'PCP') {
-            // para los prestamos a corto plazo se agregará el record en la descripción
-            if(e['QNASPREST'] && e['QNASPREST'] !== '/') {
-              descripcion += ', PAGO ' + e['QNASPREST']
-            }
-          }
+          // if(p.KEY === 'PCP') {
+          //   // para los prestamos a corto plazo se agregará el record en la descripción
+          //   if(e['QNASPREST'] && e['QNASPREST'] !== '/') {
+          //     descripcion += ', PAGO ' + e['QNASPREST']
+          //   }
+          // }
           desglose.push(descripcion);
           desglose.push(String(p.TIPO_SAT).padStart(3,'0'));
           desglose.push(grabado);
@@ -558,9 +612,17 @@ class Timbrado extends Component {
       datos.push(percepciones); // v. unitario
       datos.push(percepciones); // importe
       datos.push(emision); // tipo nomina
-      datos.push(pago); // f pago
-      datos.push(inicio); // f inicio
-      datos.push(fin); // f fin
+      if(this.state.periodos_variados){
+        //Se toman los valores establecidos para los valores del periodo
+        datos.push(this.convierteFecha(e['PAGO'])); // f pago
+        datos.push(this.convierteFecha(e['INICIO']))// f inicio
+        datos.push(this.convierteFecha(e['FIN'])); // f fin
+        diasPagados = 1
+      } else {
+        datos.push(pago); // f pago
+        datos.push(inicio); // f inicio
+        datos.push(fin); // f fin
+      }
       datos.push(Number(diasPagados)); // dias pagados
       datos.push(percepciones);
       datos.push(deducciones);
@@ -577,10 +639,9 @@ class Timbrado extends Component {
       datos.push(e.NSS); // Num seguro
       // antiguedad
       if (e.sindicalizado) {
-        datos.push(parseDate(e.FECHAING.toISOString().substr(0, 10)));// fecha ingreso
-        // calcula las semanas
-        let semanas = parseInt(this.calculaDias(e.FECHAING, new Date(this.state.fechaFin))/7) || 1
-        datos.push('P'+semanas+"W");
+        datos.push(this.parseDate(e.FECHAING.toISOString().substr(0, 10)));// fecha ingreso
+        // Ahora la antiguedad la calculará el sistema de sefiplan
+        datos.push('CALCULA');
       } else {
         datos.push(''); //ingreso
         datos.push(''); // antiguedad
@@ -589,22 +650,24 @@ class Timbrado extends Component {
       datos.push(e.sindicalizado || ''); // sindicalizado
       datos.push('01'); // jornada
       datos.push(e.regimen); // regimen
-      datos.push('0'); // no. empleado
+      datos.push(e['NOEMPEADO'] ? e['NOEMPEADO'] : '0'); // no. empleado
       recibo.datos.no_emp = e['NOEMPEADO'];
       datos.push(e['ADSCRIPCION'].replace('.', '').replace(',',''));
       recibo.datos.adscripcion = e['ADSCRIPCION'].replace('.', '').replace(',','');
-      datos.push(''); // puesto
+      datos.push(e['NOMBRE_PUESTO']); // puesto
       recibo.datos.puesto = e['NOMBRE_PUESTO'];
       recibo.datos.codigo = e['CODIGO'];
       datos.push(e.riesgo); // riesgo
       datos.push(periodo); // periodicidad 
-      datos.push(''); // banco
-      datos.push(''); // cuenta
+      datos.push( bancos[e['BANCO']] ? bancos[e['BANCO']] : ''); // banco
+      let cuenta = String(e['NCUENTA'])
+      cuenta = '0'.repeat(11 - cuenta.length) + cuenta
+      datos.push(bancos[e['BANCO']] ? cuenta : ''); // cuenta
       datos.push(0); // salario aportaciones
       datos.push(e.sindicalizado && periodo !== '99' ? Math.round((percepciones/diasPagados)*100)/100 : 0); // salario diario
       datos.push('VER'); // estado
-      datos.push(percepciones); // total sueldos
-      datos.push(''); // indemnización
+      datos.push(percepciones - totalSeparacion); // total sueldos
+      datos.push(totalSeparacion); // indemnización
       datos.push(''); // jubilacion-pension-retiro
       datos.push(totalGravado); // grabado
       datos.push(totalExcento); // excento
@@ -664,7 +727,7 @@ class Timbrado extends Component {
               window.URL.revokeObjectURL(url);
           },
           0);
-  }
+    }
 
     // se escribe el archivo de los conceptos
     var req = new XMLHttpRequest();
@@ -713,6 +776,32 @@ class Timbrado extends Component {
       })
     }
     req2.send();
+
+    if(this.state.esFiniquito){
+      // se escribe el archivo Indemnización
+      var req3 = new XMLHttpRequest();
+      req3.open("GET", indemnizacion, true);
+      req3.responseType = "arraybuffer";
+      req3.onload = function(e) {
+        var data = new Uint8Array(req3.response);
+        var workbook = new Excel.Workbook();
+        workbook.xlsx.load(data).then(function () {
+          var sh = workbook.getWorksheet(1)
+          sh.addRows(separacion)
+          
+          workbook.xlsx.writeBuffer( {
+              base64: true
+          })
+          .then((data) => {
+            download(data, folioBase + '_indemnizacion.xlsx')
+          })
+          .catch(function(error) {
+              console.log(error.message);
+          });
+        })
+      }
+      req3.send();
+    }
 
     // datos para recibos
     download (recibos, folioBase +'_recibos.json', true)
