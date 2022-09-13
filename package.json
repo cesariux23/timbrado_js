@@ -4,7 +4,7 @@
   "homepage": "http://192.168.30.248/timbrado",
   "private": true,
   "dependencies": {
-    "bootstrap": "^4.2.1",
+    "bootstrap": "^4.3.1",
     "css-loader": "^2.1.0",
     "exceljs": "^1.7.0",
     "fs": "^0.0.1-security",
