@@ -66,7 +66,7 @@ class Timbrado extends Component {
     //this.handleSubmit = this.handleSubmit.bind(this);
 
     // Patrón para validar el nombre del archivo
-    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|finiquito|[a-z]{3})?.*(base|conf|compen|edd|h1|b|c|h2|nsal).*\.xls(x)?/i;
+    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|finiquito|[a-z]{3})?.*(base|conf|compen|edd|b|c|h[1-4]|nsal).*\.xls(x)?/i;
 
     //patron para la validacion de RFC
     this.RfcPatter = /[A-Z]{4}\d{6}[A-Z0-9]{3}/i;
@@ -99,14 +99,14 @@ class Timbrado extends Component {
         'TNETO',
         'CURP',
         'NCUENTA',
-        'BANCO'
+        'BANCO',
+        'NOMBRE_PUESTO',
       ],
       'plantilla': [
         'CODIGO',
         'FECHAING',
         'BASECONF',
         'NOEMPEADO',
-        'NOMBRE_PUESTO',
         'CORREO',
         'NSS',
       ]
@@ -234,8 +234,14 @@ class Timbrado extends Component {
           case 'H2':
               valores.tipo_nomina = 5;
               break;
-          default:
+          case 'H3':
             valores.tipo_nomina = 6;
+            break;
+          case 'H4':
+            valores.tipo_nomina = 7;
+            break;
+          default:
+            valores.tipo_nomina = 9;
         }
       }
       //tipo de emision
@@ -658,11 +664,18 @@ class Timbrado extends Component {
       recibo.datos.puesto = e['NOMBRE_PUESTO'];
       recibo.datos.codigo = e['CODIGO'];
       datos.push(e.riesgo); // riesgo
-      datos.push(periodo); // periodicidad 
-      datos.push( bancos[e['BANCO']] ? bancos[e['BANCO']] : ''); // banco
-      let cuenta = String(e['NCUENTA'])
-      cuenta = '0'.repeat(11 - cuenta.length) + cuenta
-      datos.push(bancos[e['BANCO']] ? cuenta : ''); // cuenta
+      datos.push(periodo); // periodicidad
+      // DATOS DEL PAGO
+      // Si se define el campo CLABE, entonces se debe agregar la clabe y omitir el valor para banco
+      if(e['CLABE']) {
+         datos.push('') //banco
+         datos.push(String(e['CLABE'])) //cuenta
+      } else {
+        datos.push( bancos[e['BANCO']] ? bancos[e['BANCO']] : ''); // banco
+        let cuenta = String(e['NCUENTA'])
+        cuenta = '0'.repeat(11 - cuenta.length) + cuenta
+        datos.push(bancos[e['BANCO']] ? cuenta : ''); // cuenta
+      }
       datos.push(0); // salario aportaciones
       datos.push(e.sindicalizado && periodo !== '99' ? Math.round((percepciones/diasPagados)*100)/100 : 0); // salario diario
       datos.push('VER'); // estado
@@ -829,7 +842,9 @@ class Timbrado extends Component {
                 <option value="3">EDD</option>
                 <option value="4">(H1) Asimilados federales</option>
                 <option value="5">(H2) Asimilados estatales</option>
-                <option value="6">Otro</option>
+                <option value="6">(H3) Asimilados Genero</option>
+                <option value="7">(H4) Asimilados Acceso</option>
+                <option value="9">Otro</option>
               </Input>
             </FormGroup>
           </Col>
