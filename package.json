@@ -6,7 +6,7 @@
   "dependencies": {
     "bootstrap": "^4.2.1",
     "css-loader": "^2.1.0",
-    "exceljs": "^1.7.0",
+    "exceljs": "^1.15.0",
     "fs": "^0.0.1-security",
     "graceful-fs": "^4.1.15",
     "papaparse": "^4.6.3",
