@@ -66,7 +66,7 @@ class Timbrado extends Component {
     //this.handleSubmit = this.handleSubmit.bind(this);
 
     // Patrón para validar el nombre del archivo
-    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|finiquito|[a-z]{3})?.*(base|conf|compen|edd|b|c|h[1-4]|nsal).*\.xls(x)?/i;
+    this.fileName = /^(20\d{2})([012]\d)?_(retro|agui|extra|finiquito|[a-z]{3})?.*(base|conf|compen|edd|b|c|h[1-4]|nsal|v).*\.xls(x)?/i;
 
     //patron para la validacion de RFC
     this.RfcPatter = /[A-Z]{4}\d{6}[A-Z0-9]{3}/i;
@@ -101,6 +101,7 @@ class Timbrado extends Component {
         'NCUENTA',
         'BANCO',
         'NOMBRE_PUESTO',
+        'CP',
       ],
       'plantilla': [
         'CODIGO',
@@ -239,6 +240,9 @@ class Timbrado extends Component {
             break;
           case 'H4':
             valores.tipo_nomina = 7;
+            break;
+          case 'V':
+            valores.tipo_nomina = 0;
             break;
           default:
             valores.tipo_nomina = 9;
@@ -406,6 +410,7 @@ class Timbrado extends Component {
           e.CORREO = e.CORREO || 'ver_rechum@inea.gob.mx';
           e.cc = e.CORREO === 'ver_rechum@inea.gob.mx' ? '' : 'ver_rechum@inea.gob.mx';
           e.sexo = e.CURP.substr(10,1) === 'H' ? 'M' : 'F';
+          e.turno = 'MIXTO';
           switch (plantilla) {
             case 'B':
             case 'C':
@@ -420,6 +425,11 @@ class Timbrado extends Component {
               e.regimen = this.state.esFiniquito ? '13': '02'
               e.contrato = this.state.esFiniquito ? '99': '01';
               e.seguridad_social = 'ISSSTE';
+              // BASE es matutino
+              if (plantilla === 'B') {
+                e.turno = 'MATUTINO';
+              }
+
               break;
             default:
               e.sindicalizado = false;
@@ -488,6 +498,7 @@ class Timbrado extends Component {
         let desglose = [];
         let valSeparacion = 0
         // se valida el monto
+
         let valor =parseFloat(parseFloat(e[p.KEY]).toFixed(2));
         if (valor>0) {
           let excento = 0;
@@ -673,7 +684,7 @@ class Timbrado extends Component {
       } else {
         datos.push( bancos[e['BANCO']] ? bancos[e['BANCO']] : ''); // banco
         let cuenta = String(e['NCUENTA'])
-        cuenta = '0'.repeat(11 - cuenta.length) + cuenta
+        cuenta = cuenta.length < 11 ? '0'.repeat(11 - cuenta.length) + cuenta : cuenta
         datos.push(bancos[e['BANCO']] ? cuenta : ''); // cuenta
       }
       datos.push(0); // salario aportaciones
@@ -714,6 +725,10 @@ class Timbrado extends Component {
       datos.push(e.sexo);
       datos.push(e.situacion_administrativa);
       datos.push(e.seguridad_social);
+      // Feb 2023:
+      // actualización timbrado 4.0
+      datos.push(''+e.CP);
+      datos.push(e.turno);
 
       generales.push(datos);
       recibos.empleados.push(recibo);
@@ -837,6 +852,7 @@ class Timbrado extends Component {
             <FormGroup>
               <Label for="tipo_nomina">Tipo de nomina</Label>
               <Input name="tipo_nomina" type="select" value={this.state.tipo_nomina} onChange={this.handleChange}>
+                <option value="0">----VIATICOS----</option>
                 <option value="1">Base</option>
                 <option value="2">Confianza</option>
                 <option value="3">EDD</option>
